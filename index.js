@@ -39,9 +39,9 @@ const settings = require('./settings')
 const CONFIG = {
     PORT: process.env.PORT || 3000,           // Port to run on (use 80 for direct IP access)
     HOST: '0.0.0.0',                           // Listen on all interfaces (required for VPS)
-    VPS_IP: process.env.VPS_IP || 'YOUR_VPS_IP_HERE',  // Your VPS IP for display purposes
+    VPS_IP: process.env.VPS_IP || '172.31.38.194',  // Your VPS IP for display purposes
     USE_HTTPS: false,                          // Set to true if using SSL
-    DOMAIN: process.env.DOMAIN || '',          // Optional: your domain name
+    DOMAIN: process.env.DOMAIN || 'netivosolutions.top',          // Optional: your domain name
 };
 // ============================================
 
