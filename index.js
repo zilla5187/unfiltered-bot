@@ -1,6 +1,7 @@
-pm2 stop ubot
-pm2 delete ubot
+# Remove the broken index.js
 rm index.js
+
+# Create the correct index.js
 cat > index.js << 'ENDOFFILE'
 /**
  * ██╗   ██╗██████╗  ██████╗ ████████╗
@@ -19,14 +20,7 @@ const readline = require('readline');
 const fs = require('fs');
 const path = require('path');
 const chalk = require('chalk');
-const { execSync, spawn } = require('child_process');
-const figlet = require('figlet');
-
-// Try to load optional dependencies
-let gradient, boxen, ora;
-try { gradient = require('gradient-string'); } catch (e) { gradient = null; }
-try { boxen = require('boxen'); } catch (e) { boxen = null; }
-try { ora = require('ora'); } catch (e) { ora = null; }
+const { spawn } = require('child_process');
 
 // ============ CONFIGURATION ============
 const CONFIG = {
@@ -35,103 +29,84 @@ const CONFIG = {
     author: 'Glen',
     telegram: '@unfilteredg',
     whatsapp: '+25473505427',
-    github: 'github.com/gloloruntobi',
+    github: 'github.com/zilla5187',
     website: 'netivosolutions.top',
     sessionDir: './session',
     dataDir: './data',
     port: process.env.PORT || 3000,
 };
 
-// ============ COLORS & STYLES ============
-const colors = {
-    primary: chalk.white,
-    secondary: chalk.gray,
-    accent: chalk.green,
-    warning: chalk.yellow,
-    error: chalk.red,
-    info: chalk.cyan,
-    success: chalk.greenBright,
-    muted: chalk.dim,
-    highlight: chalk.bgWhite.black,
-    banner: chalk.green,
+// ============ ASCII BANNER ============
+const printBanner = () => {
+    console.log(chalk.green(`
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║   ${chalk.greenBright('██╗   ██╗')}${chalk.white('██████╗  ██████╗ ████████╗')}                                       ║
+║   ${chalk.greenBright('██║   ██║')}${chalk.white('██╔══██╗██╔═══██╗╚══██╔══╝')}                                       ║
+║   ${chalk.greenBright('██║   ██║')}${chalk.white('██████╔╝██║   ██║   ██║   ')}   ${chalk.gray('Unfiltered Bytzz Bot')}            ║
+║   ${chalk.greenBright('██║   ██║')}${chalk.white('██╔══██╗██║   ██║   ██║   ')}   ${chalk.gray('Multi-Device WhatsApp')}           ║
+║   ${chalk.greenBright('╚██████╔╝')}${chalk.white('██████╔╝╚██████╔╝   ██║   ')}   ${chalk.gray('v' + CONFIG.version)}                         ║
+║   ${chalk.greenBright(' ╚═════╝ ')}${chalk.white('╚═════╝  ╚═════╝    ╚═╝   ')}                                       ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+`));
+    console.log(chalk.gray(`  📱 Telegram: ${CONFIG.telegram} | 💬 WhatsApp: ${CONFIG.whatsapp}`));
+    console.log(chalk.gray(`  🌐 Website: ${CONFIG.website} | 📦 GitHub: ${CONFIG.github}\n`));
 };
 
-// ============ ASCII BANNERS ============
-const BANNERS = {
-    main: `
-${chalk.green('╔═══════════════════════════════════════════════════════════════════════════════╗')}
-${chalk.green('║')}                                                                               ${chalk.green('║')}
-${chalk.green('║')}   ${chalk.greenBright('██╗   ██╗')}${chalk.white('██████╗  ██████╗ ████████╗')}                                       ${chalk.green('║')}
-${chalk.green('║')}   ${chalk.greenBright('██║   ██║')}${chalk.white('██╔══██╗██╔═══██╗╚══██╔══╝')}                                       ${chalk.green('║')}
-${chalk.green('║')}   ${chalk.greenBright('██║   ██║')}${chalk.white('██████╔╝██║   ██║   ██║   ')}   ${chalk.gray('Unfiltered Bytzz Bot')}            ${chalk.green('║')}
-${chalk.green('║')}   ${chalk.greenBright('██║   ██║')}${chalk.white('██╔══██╗██║   ██║   ██║   ')}   ${chalk.gray('Multi-Device WhatsApp')}           ${chalk.green('║')}
-${chalk.green('║')}   ${chalk.greenBright('╚██████╔╝')}${chalk.white('██████╔╝╚██████╔╝   ██║   ')}   ${chalk.gray('v' + CONFIG.version)}                         ${chalk.green('║')}
-${chalk.green('║')}   ${chalk.greenBright(' ╚═════╝ ')}${chalk.white('╚═════╝  ╚═════╝    ╚═╝   ')}                                       ${chalk.green('║')}
-${chalk.green('║')}                                                                               ${chalk.green('║')}
-${chalk.green('╚═══════════════════════════════════════════════════════════════════════════════╝')}
-`,
-    mini: `
-${chalk.green('┌─────────────────────────────────────┐')}
-${chalk.green('│')}  ${chalk.greenBright('⚡')} ${chalk.white.bold('UBOT')} ${chalk.gray('- Unfiltered Bytzz')}       ${chalk.green('│')}
-${chalk.green('│')}  ${chalk.gray('Created by Glen | v' + CONFIG.version)}        ${chalk.green('│')}
-${chalk.green('└─────────────────────────────────────┘')}
-`,
-    loading: `
-   ${chalk.green('█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█')}
-   ${chalk.green('█')}  ${chalk.white('⚡ UBOT LOADING...')}     ${chalk.green('█')}
-   ${chalk.green('█▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄█')}
-`,
-};
-
-// ============ UTILITY FUNCTIONS ============
+// ============ UTILITIES ============
 const clearScreen = () => {
-    process.stdout.write('\x1Bc');
     console.clear();
+    process.stdout.write('\x1Bc');
 };
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-const printLine = (char = '─', length = 70) => {
-    console.log(chalk.green(char.repeat(length)));
+// ============ READLINE INTERFACE ============
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+});
+
+const question = (prompt) => new Promise((resolve) => {
+    rl.question(chalk.green('? ') + chalk.white(prompt), resolve);
+});
+
+const pressEnter = () => new Promise((resolve) => {
+    rl.question(chalk.gray('\n  Press ENTER to continue...'), () => resolve());
+});
+
+// ============ SESSION MANAGEMENT ============
+const sessionExists = () => fs.existsSync(CONFIG.sessionDir) && fs.readdirSync(CONFIG.sessionDir).length > 0;
+
+const getSessionInfo = () => {
+    if (!sessionExists()) return null;
+    try {
+        const credsPath = path.join(CONFIG.sessionDir, 'creds.json');
+        if (fs.existsSync(credsPath)) {
+            const creds = JSON.parse(fs.readFileSync(credsPath));
+            return {
+                registered: creds.registered || false,
+                phone: creds.me?.id?.split(':')[0] || 'Unknown',
+            };
+        }
+    } catch (e) {}
+    return { registered: false, phone: 'Unknown' };
 };
 
-const printBox = (text, options = {}) => {
-    const { title = '', padding = 1, borderColor = 'green' } = options;
-    const lines = text.split('\n');
-    const maxLen = Math.max(...lines.map(l => l.replace(/\x1B\[[0-9;]*m/g, '').length), (title.length + 4));
-    const width = maxLen + (padding * 2);
-    
-    console.log(chalk[borderColor]('┌' + (title ? `─ ${title} ` : '') + '─'.repeat(Math.max(0, width - title.length - 3)) + '┐'));
-    lines.forEach(line => {
-        const cleanLine = line.replace(/\x1B\[[0-9;]*m/g, '');
-        const padRight = width - cleanLine.length;
-        console.log(chalk[borderColor]('│') + ' '.repeat(padding) + line + ' '.repeat(Math.max(0, padRight - padding)) + chalk[borderColor]('│'));
-    });
-    console.log(chalk[borderColor]('└' + '─'.repeat(width) + '┘'));
+const deleteSession = () => {
+    if (fs.existsSync(CONFIG.sessionDir)) {
+        fs.rmSync(CONFIG.sessionDir, { recursive: true, force: true });
+        return true;
+    }
+    return false;
 };
 
-const printHeader = () => {
-    clearScreen();
-    console.log(BANNERS.main);
-    console.log(chalk.gray(`  📱 Telegram: ${CONFIG.telegram} | 💬 WhatsApp: ${CONFIG.whatsapp}`));
-    console.log(chalk.gray(`  🌐 Website: ${CONFIG.website} | 📦 GitHub: ${CONFIG.github}`));
-    console.log();
-};
+// ============ BOT PROCESS ============
+let botProcess = null;
+let botStartTime = null;
 
-const printMiniHeader = () => {
-    console.log(BANNERS.mini);
-};
-
-const spinner = (text) => {
-    if (ora) return ora(text).start();
-    console.log(chalk.yellow('⏳ ' + text));
-    return { 
-        succeed: (t) => console.log(chalk.green('✅ ' + (t || text))),
-        fail: (t) => console.log(chalk.red('❌ ' + (t || text))),
-        stop: () => {},
-        text: text
-    };
-};
+const isBotRunning = () => botProcess !== null && !botProcess.killed;
 
 const formatUptime = (ms) => {
     const s = Math.floor(ms / 1000) % 60;
@@ -149,143 +124,49 @@ const formatBytes = (bytes) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-const getSystemInfo = () => {
-    const os = require('os');
-    return {
-        platform: os.platform(),
-        arch: os.arch(),
-        nodeVersion: process.version,
-        totalMemory: formatBytes(os.totalmem()),
-        freeMemory: formatBytes(os.freemem()),
-        usedMemory: formatBytes(process.memoryUsage().rss),
-        cpus: os.cpus().length,
-        uptime: formatUptime(os.uptime() * 1000),
-        hostname: os.hostname(),
-    };
-};
-
-// ============ SESSION MANAGEMENT ============
-const sessionExists = () => fs.existsSync(CONFIG.sessionDir) && fs.readdirSync(CONFIG.sessionDir).length > 0;
-
-const getSessionInfo = () => {
-    if (!sessionExists()) return null;
-    try {
-        const credsPath = path.join(CONFIG.sessionDir, 'creds.json');
-        if (fs.existsSync(credsPath)) {
-            const creds = JSON.parse(fs.readFileSync(credsPath));
-            return {
-                registered: creds.registered || false,
-                phone: creds.me?.id?.split(':')[0] || 'Unknown',
-                platform: creds.platform || 'Unknown',
-                lastConnect: creds.lastConnect || null,
-            };
-        }
-    } catch (e) {}
-    return { registered: false, phone: 'Unknown' };
-};
-
-const deleteSession = () => {
-    if (fs.existsSync(CONFIG.sessionDir)) {
-        fs.rmSync(CONFIG.sessionDir, { recursive: true, force: true });
-        return true;
-    }
-    return false;
-};
-
-// ============ BOT PROCESS MANAGEMENT ============
-let botProcess = null;
-let botStartTime = null;
-
-const isBotRunning = () => botProcess !== null && !botProcess.killed;
-
-const getBotStatus = () => {
-    if (!isBotRunning()) return { running: false };
-    return {
-        running: true,
-        pid: botProcess.pid,
-        uptime: botStartTime ? formatUptime(Date.now() - botStartTime) : 'Unknown',
-    };
-};
-
-// ============ READLINE INTERFACE ============
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-});
-
-const question = (prompt) => new Promise((resolve) => {
-    rl.question(chalk.green('? ') + chalk.white(prompt), (answer) => {
-        resolve(answer.trim());
-    });
-});
-
-const pressEnter = () => new Promise((resolve) => {
-    rl.question(chalk.gray('\n  Press ENTER to continue...'), () => resolve());
-});
-
-// ============ MENU SYSTEM ============
-const MENUS = {
-    main: [
-        { key: '1', label: 'Start Bot', icon: '🚀', action: 'startBot' },
-        { key: '2', label: 'Stop Bot', icon: '🛑', action: 'stopBot' },
-        { key: '3', label: 'View Bot Status', icon: '📊', action: 'viewStatus' },
-        { key: '4', label: 'View Logs', icon: '📜', action: 'viewLogs' },
-        { key: '5', label: 'Session Manager', icon: '🔐', action: 'sessionMenu' },
-        { key: '6', label: 'Settings', icon: '⚙️', action: 'settingsMenu' },
-        { key: '7', label: 'System Info', icon: '💻', action: 'systemInfo' },
-        { key: '8', label: 'Install Dependencies', icon: '📦', action: 'installDeps' },
-        { key: '9', label: 'About', icon: 'ℹ️', action: 'about' },
-        { key: '0', label: 'Exit', icon: '👋', action: 'exit' },
-    ],
-    session: [
-        { key: '1', label: 'View Session Info', icon: '🔍', action: 'viewSession' },
-        { key: '2', label: 'Delete Session', icon: '🗑️', action: 'deleteSession' },
-        { key: '3', label: 'Backup Session', icon: '💾', action: 'backupSession' },
-        { key: '4', label: 'Restore Session', icon: '📥', action: 'restoreSession' },
-        { key: '0', label: 'Back to Main Menu', icon: '◀️', action: 'back' },
-    ],
-    settings: [
-        { key: '1', label: 'Change Bot Name', icon: '✏️', action: 'changeBotName' },
-        { key: '2', label: 'Change Port', icon: '🔌', action: 'changePort' },
-        { key: '3', label: 'Change Owner Number', icon: '👤', action: 'changeOwner' },
-        { key: '4', label: 'Toggle Auto-Read', icon: '👁️', action: 'toggleAutoRead' },
-        { key: '5', label: 'Toggle Public Mode', icon: '🌐', action: 'togglePublic' },
-        { key: '6', label: 'View Current Settings', icon: '📋', action: 'viewSettings' },
-        { key: '0', label: 'Back to Main Menu', icon: '◀️', action: 'back' },
-    ],
-};
-
-const printMenu = (menuItems, title = 'MAIN MENU') => {
-    console.log();
-    console.log(chalk.green('  ╔═══════════════════════════════════════╗'));
+// ============ MENUS ============
+const printMenu = (items, title) => {
+    console.log(chalk.green('\n  ╔═══════════════════════════════════════╗'));
     console.log(chalk.green('  ║') + chalk.white.bold(`  ${title}`.padEnd(39)) + chalk.green('║'));
     console.log(chalk.green('  ╠═══════════════════════════════════════╣'));
-    
-    menuItems.forEach(item => {
-        const line = `  ${item.icon}  [${item.key}] ${item.label}`;
-        console.log(chalk.green('  ║') + chalk.white(line.padEnd(39)) + chalk.green('║'));
+    items.forEach(item => {
+        console.log(chalk.green('  ║') + chalk.white(`  ${item.icon}  [${item.key}] ${item.label}`.padEnd(39)) + chalk.green('║'));
     });
-    
-    console.log(chalk.green('  ╚═══════════════════════════════════════╝'));
-    console.log();
+    console.log(chalk.green('  ╚═══════════════════════════════════════╝\n'));
 };
 
-// ============ BOT CORE FUNCTIONS ============
-const startBotProcess = async () => {
+const mainMenu = [
+    { key: '1', label: 'Start Bot', icon: '🚀' },
+    { key: '2', label: 'Stop Bot', icon: '🛑' },
+    { key: '3', label: 'View Bot Status', icon: '📊' },
+    { key: '4', label: 'Session Manager', icon: '🔐' },
+    { key: '5', label: 'System Info', icon: '💻' },
+    { key: '6', label: 'About', icon: 'ℹ️' },
+    { key: '0', label: 'Exit', icon: '👋' },
+];
+
+const sessionMenu = [
+    { key: '1', label: 'View Session Info', icon: '🔍' },
+    { key: '2', label: 'Delete Session', icon: '🗑️' },
+    { key: '3', label: 'Backup Session', icon: '💾' },
+    { key: '0', label: 'Back', icon: '◀️' },
+];
+
+// ============ BOT RUNNER ============
+const startBot = async () => {
     if (isBotRunning()) {
         console.log(chalk.yellow('\n  ⚠️  Bot is already running!'));
-        return false;
+        await pressEnter();
+        return;
     }
 
-    const spin = spinner('Starting UBot...');
-    
-    try {
-        // Create the bot runner script
-        const botScript = `
+    console.log(chalk.cyan('\n  🚀 Starting UBot...\n'));
+
+    // Create bot runner script
+    const botScript = `
 require('./settings');
 const fs = require('fs');
 const chalk = require('chalk');
-const path = require('path');
 const { handleMessages, handleGroupParticipantUpdate, handleStatus } = require('./main');
 const PhoneNumber = require('awesome-phonenumber');
 const { smsg } = require('./lib/myfunc');
@@ -310,7 +191,6 @@ const settings = require('./settings');
 store.readFromFile();
 setInterval(() => store.writeToFile(), settings.storeWriteInterval || 10000);
 
-let XeonBotInc = null;
 global.botname = "UBOT";
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -322,7 +202,7 @@ async function startBot() {
         const { state, saveCreds } = await useMultiFileAuthState('./session');
         const msgRetryCounterCache = new NodeCache();
 
-        XeonBotInc = makeWASocket({
+        const XeonBotInc = makeWASocket({
             version,
             logger: pino({ level: 'silent' }),
             printQRInTerminal: true,
@@ -343,13 +223,12 @@ async function startBot() {
         XeonBotInc.ev.on('creds.update', saveCreds);
         store.bind(XeonBotInc.ev);
 
-        // Handle pairing code
         if (!XeonBotInc.authState.creds.registered) {
             console.log(chalk.cyan('\\n  ════════════════════════════════════════'));
             console.log(chalk.cyan('  ║') + chalk.white.bold('  UBOT PAIRING MODE') + chalk.cyan('                    ║'));
             console.log(chalk.cyan('  ════════════════════════════════════════\\n'));
             
-            const phoneNumber = await question(chalk.green('  ? ') + chalk.white('Enter your WhatsApp number (with country code): '));
+            const phoneNumber = await question(chalk.green('  ? ') + chalk.white('Enter WhatsApp number (with country code): '));
             const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
             
             if (cleanNumber.length >= 10) {
@@ -364,8 +243,7 @@ async function startBot() {
                         console.log(chalk.green('  ╚═══════════════════════════════════════╝'));
                         console.log();
                         console.log(chalk.gray('  Enter this code in WhatsApp:'));
-                        console.log(chalk.gray('  Settings → Linked Devices → Link a Device'));
-                        console.log();
+                        console.log(chalk.gray('  Settings → Linked Devices → Link a Device\\n'));
                     } catch (e) {
                         console.log(chalk.red('  ❌ Failed to get pairing code: ' + e.message));
                     }
@@ -376,23 +254,16 @@ async function startBot() {
         XeonBotInc.ev.on('connection.update', async (update) => {
             const { connection, lastDisconnect, qr } = update;
             
-            if (qr) {
-                console.log(chalk.yellow('\\n  📱 QR Code displayed above. Scan with WhatsApp.'));
-            }
-            
-            if (connection === 'connecting') {
-                console.log(chalk.yellow('  🔄 Connecting to WhatsApp...'));
-            }
+            if (qr) console.log(chalk.yellow('\\n  📱 Scan QR Code above with WhatsApp'));
+            if (connection === 'connecting') console.log(chalk.yellow('  🔄 Connecting...'));
             
             if (connection === 'open') {
                 const phoneNum = XeonBotInc.user?.id?.split(':')[0];
                 console.log();
                 console.log(chalk.green('  ╔═══════════════════════════════════════╗'));
-                console.log(chalk.green('  ║') + chalk.white.bold('  ✅ UBOT CONNECTED SUCCESSFULLY!       ') + chalk.green('║'));
+                console.log(chalk.green('  ║') + chalk.white.bold('  ✅ UBOT CONNECTED!                    ') + chalk.green('║'));
                 console.log(chalk.green('  ║') + chalk.gray('  Phone: +' + (phoneNum || 'Unknown').padEnd(28)) + chalk.green('║'));
-                console.log(chalk.green('  ║') + chalk.gray('  Time: ' + new Date().toLocaleString().padEnd(29)) + chalk.green('║'));
-                console.log(chalk.green('  ╚═══════════════════════════════════════╝'));
-                console.log();
+                console.log(chalk.green('  ╚═══════════════════════════════════════╝\\n'));
                 
                 try {
                     await XeonBotInc.sendMessage(phoneNum + '@s.whatsapp.net', {
@@ -403,15 +274,12 @@ async function startBot() {
             
             if (connection === 'close') {
                 const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-                console.log(chalk.red('  ❌ Connection closed'));
-                
+                console.log(chalk.red('  ❌ Disconnected'));
                 if (lastDisconnect?.error?.output?.statusCode === 401) {
                     rmSync('./session', { recursive: true, force: true });
-                    console.log(chalk.yellow('  🗑️ Session cleared due to logout'));
                 }
-                
                 if (shouldReconnect) {
-                    console.log(chalk.yellow('  🔄 Reconnecting in 5 seconds...'));
+                    console.log(chalk.yellow('  🔄 Reconnecting...'));
                     await delay(5000);
                     startBot();
                 } else {
@@ -428,7 +296,7 @@ async function startBot() {
                 if (msg.key?.remoteJid === 'status@broadcast') { await handleStatus(XeonBotInc, m); return; }
                 if (msg.key.id.startsWith('BAE5') && msg.key.id.length === 16) return;
                 await handleMessages(XeonBotInc, m, true);
-            } catch (e) { console.error('  ❌ Message error:', e.message); }
+            } catch (e) { console.error('  ❌ Error:', e.message); }
         });
 
         XeonBotInc.decodeJid = (jid) => {
@@ -460,36 +328,16 @@ async function startBot() {
             await handleGroupParticipantUpdate(XeonBotInc, update);
         });
 
-        // Anti-call
-        const antiCallNotified = new Set();
-        XeonBotInc.ev.on('call', async (calls) => {
-            try {
-                const { readState } = require('./commands/anticall');
-                if (!readState().enabled) return;
-                for (const call of calls) {
-                    const jid = call.from || call.peerJid;
-                    if (!jid) continue;
-                    try { if (XeonBotInc.rejectCall) await XeonBotInc.rejectCall(call.id, jid); } catch {}
-                    if (!antiCallNotified.has(jid)) {
-                        antiCallNotified.add(jid);
-                        setTimeout(() => antiCallNotified.delete(jid), 60000);
-                        await XeonBotInc.sendMessage(jid, { text: '📵 Calls blocked.' });
-                    }
-                    setTimeout(async () => { try { await XeonBotInc.updateBlockStatus(jid, 'block'); } catch {} }, 800);
-                }
-            } catch {}
-        });
-
         return XeonBotInc;
     } catch (e) {
-        console.error('  ❌ Bot error:', e.message);
+        console.error('  ❌ Error:', e.message);
         await delay(5000);
         startBot();
     }
 }
 
 console.log(chalk.green('\\n  ════════════════════════════════════════'));
-console.log(chalk.green('  ║') + chalk.greenBright.bold('  ⚡ UBOT - Unfiltered Bytzz Bot') + chalk.green('        ║'));
+console.log(chalk.green('  ║') + chalk.greenBright.bold('  ⚡ UBOT - Unfiltered Bytzz') + chalk.green('            ║'));
 console.log(chalk.green('  ║') + chalk.gray('  Created by Glen | v4.0.0') + chalk.green('             ║'));
 console.log(chalk.green('  ════════════════════════════════════════\\n'));
 
@@ -499,201 +347,172 @@ process.on('uncaughtException', (e) => console.error('  ❌ Exception:', e.messa
 process.on('unhandledRejection', (e) => console.error('  ❌ Rejection:', e.message));
 `;
 
-        // Write bot runner
-        fs.writeFileSync('./bot_runner.js', botScript);
-        
-        await sleep(500);
-        
-        // Start bot process
-        botProcess = spawn('node', ['bot_runner.js'], {
-            stdio: 'inherit',
-            detached: false,
-        });
-        
-        botStartTime = Date.now();
-        
-        botProcess.on('error', (err) => {
-            spin.fail('Failed to start bot: ' + err.message);
-            botProcess = null;
-        });
-        
-        botProcess.on('exit', (code) => {
-            console.log(chalk.yellow(`\n  Bot process exited with code ${code}`));
-            botProcess = null;
-            botStartTime = null;
-        });
-        
-        spin.succeed('Bot started successfully!');
-        console.log(chalk.gray('  PID: ' + botProcess.pid));
-        
-        return true;
-    } catch (e) {
-        spin.fail('Failed to start bot: ' + e.message);
-        return false;
-    }
+    fs.writeFileSync('./bot_runner.js', botScript);
+
+    botProcess = spawn('node', ['bot_runner.js'], {
+        stdio: 'inherit',
+        detached: false,
+    });
+
+    botStartTime = Date.now();
+
+    botProcess.on('error', (err) => {
+        console.log(chalk.red('\n  ❌ Failed to start: ' + err.message));
+        botProcess = null;
+    });
+
+    botProcess.on('exit', (code) => {
+        console.log(chalk.yellow(`\n  Bot exited with code ${code}`));
+        botProcess = null;
+        botStartTime = null;
+    });
 };
 
-const stopBotProcess = async () => {
+const stopBot = async () => {
     if (!isBotRunning()) {
         console.log(chalk.yellow('\n  ⚠️  Bot is not running!'));
-        return false;
+        await pressEnter();
+        return;
     }
-    
-    const spin = spinner('Stopping UBot...');
+
+    console.log(chalk.cyan('\n  🛑 Stopping UBot...'));
     
     try {
         botProcess.kill('SIGTERM');
         await sleep(1000);
-        
-        if (isBotRunning()) {
-            botProcess.kill('SIGKILL');
-        }
-        
+        if (isBotRunning()) botProcess.kill('SIGKILL');
         botProcess = null;
         botStartTime = null;
-        
-        spin.succeed('Bot stopped successfully!');
-        return true;
+        console.log(chalk.green('  ✅ Bot stopped!'));
     } catch (e) {
-        spin.fail('Failed to stop bot: ' + e.message);
-        return false;
+        console.log(chalk.red('  ❌ Failed to stop: ' + e.message));
+    }
+    
+    await pressEnter();
+};
+
+const viewStatus = async () => {
+    clearScreen();
+    printBanner();
+    
+    console.log(chalk.cyan('  ═══════════════════════════════════════'));
+    console.log(chalk.cyan('  ║') + chalk.white.bold('  📊 BOT STATUS') + chalk.cyan('                        ║'));
+    console.log(chalk.cyan('  ═══════════════════════════════════════\n'));
+    
+    const session = getSessionInfo();
+    const running = isBotRunning();
+    
+    console.log(chalk.white('  ┌─────────────────────────────────────┐'));
+    console.log(chalk.white('  │') + chalk.gray(' Bot Status:     ') + (running ? chalk.green('● RUNNING') : chalk.red('● STOPPED')).padEnd(28) + chalk.white('│'));
+    if (running && botStartTime) {
+        console.log(chalk.white('  │') + chalk.gray(' Uptime:         ') + chalk.white(formatUptime(Date.now() - botStartTime).padEnd(20)) + chalk.white('│'));
+    }
+    console.log(chalk.white('  │') + chalk.gray(' Session:        ') + (session?.registered ? chalk.green('✓ Active') : chalk.yellow('✗ Not paired')).padEnd(28) + chalk.white('│'));
+    if (session?.phone && session.phone !== 'Unknown') {
+        console.log(chalk.white('  │') + chalk.gray(' Phone:          ') + chalk.white(('+' + session.phone).padEnd(20)) + chalk.white('│'));
+    }
+    console.log(chalk.white('  │') + chalk.gray(' Memory:         ') + chalk.white(formatBytes(process.memoryUsage().rss).padEnd(20)) + chalk.white('│'));
+    console.log(chalk.white('  └─────────────────────────────────────┘'));
+    
+    await pressEnter();
+};
+
+const handleSessionMenu = async () => {
+    while (true) {
+        clearScreen();
+        printBanner();
+        
+        const status = isBotRunning();
+        console.log(chalk.gray(`  Status: ${status ? chalk.green('● Running') : chalk.red('● Stopped')}`));
+        
+        printMenu(sessionMenu, 'SESSION MANAGER');
+        
+        const choice = await question('Enter choice: ');
+        
+        switch (choice) {
+            case '1': // View Session
+                clearScreen();
+                printBanner();
+                console.log(chalk.cyan('\n  🔍 SESSION INFO\n'));
+                const session = getSessionInfo();
+                if (!session) {
+                    console.log(chalk.yellow('  ⚠️  No session found.'));
+                } else {
+                    console.log(chalk.white('  Registered: ') + (session.registered ? chalk.green('Yes') : chalk.red('No')));
+                    console.log(chalk.white('  Phone: ') + chalk.white(session.phone || 'Unknown'));
+                }
+                await pressEnter();
+                break;
+                
+            case '2': // Delete Session
+                clearScreen();
+                printBanner();
+                console.log(chalk.red('\n  ⚠️  WARNING: This will log out your bot!\n'));
+                const confirm = await question('Type "yes" to confirm: ');
+                if (confirm.toLowerCase() === 'yes') {
+                    if (isBotRunning()) {
+                        botProcess.kill('SIGTERM');
+                        botProcess = null;
+                    }
+                    if (deleteSession()) {
+                        console.log(chalk.green('\n  ✅ Session deleted!'));
+                    } else {
+                        console.log(chalk.yellow('\n  ⚠️  No session to delete.'));
+                    }
+                }
+                await pressEnter();
+                break;
+                
+            case '3': // Backup Session
+                clearScreen();
+                printBanner();
+                if (!sessionExists()) {
+                    console.log(chalk.yellow('\n  ⚠️  No session to backup.'));
+                } else {
+                    const backupDir = './session_backups';
+                    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir);
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    const backupPath = path.join(backupDir, `session_${timestamp}`);
+                    fs.cpSync(CONFIG.sessionDir, backupPath, { recursive: true });
+                    console.log(chalk.green(`\n  ✅ Backup created: ${backupPath}`));
+                }
+                await pressEnter();
+                break;
+                
+            case '0':
+                return;
+        }
     }
 };
 
-// ============ MENU ACTIONS ============
-const actions = {
-    // Main Menu Actions
-    startBot: async () => {
-        printHeader();
-        console.log(chalk.cyan('\n  ═══════════════════════════════════════'));
-        console.log(chalk.cyan('  ║') + chalk.white.bold('  🚀 STARTING UBOT') + chalk.cyan('                     ║'));
-        console.log(chalk.cyan('  ═══════════════════════════════════════\n'));
-        
-        await startBotProcess();
-        // Don't return to menu - let bot run
-    },
+const viewSystemInfo = async () => {
+    clearScreen();
+    printBanner();
     
-    stopBot: async () => {
-        printHeader();
-        console.log(chalk.cyan('\n  ═══════════════════════════════════════'));
-        console.log(chalk.cyan('  ║') + chalk.white.bold('  🛑 STOPPING UBOT') + chalk.cyan('                     ║'));
-        console.log(chalk.cyan('  ═══════════════════════════════════════\n'));
-        
-        await stopBotProcess();
-        await pressEnter();
-        return 'main';
-    },
+    const os = require('os');
     
-    viewStatus: async () => {
-        printHeader();
-        console.log(chalk.cyan('\n  ═══════════════════════════════════════'));
-        console.log(chalk.cyan('  ║') + chalk.white.bold('  📊 BOT STATUS') + chalk.cyan('                        ║'));
-        console.log(chalk.cyan('  ═══════════════════════════════════════\n'));
-        
-        const status = getBotStatus();
-        const session = getSessionInfo();
-        
-        console.log(chalk.white('  ┌─────────────────────────────────────┐'));
-        console.log(chalk.white('  │') + chalk.gray(' Bot Status:     ') + (status.running ? chalk.green('● RUNNING') : chalk.red('● STOPPED')).padEnd(30) + chalk.white('│'));
-        if (status.running) {
-            console.log(chalk.white('  │') + chalk.gray(' Process ID:     ') + chalk.white(String(status.pid).padEnd(20)) + chalk.white('│'));
-            console.log(chalk.white('  │') + chalk.gray(' Uptime:         ') + chalk.white(status.uptime.padEnd(20)) + chalk.white('│'));
-        }
-        console.log(chalk.white('  │') + chalk.gray(' Session:        ') + (session?.registered ? chalk.green('✓ Active') : chalk.yellow('✗ Not paired')).padEnd(30) + chalk.white('│'));
-        if (session?.phone && session.phone !== 'Unknown') {
-            console.log(chalk.white('  │') + chalk.gray(' Phone:          ') + chalk.white(('+' + session.phone).padEnd(20)) + chalk.white('│'));
-        }
-        console.log(chalk.white('  │') + chalk.gray(' Memory:         ') + chalk.white(formatBytes(process.memoryUsage().rss).padEnd(20)) + chalk.white('│'));
-        console.log(chalk.white('  └─────────────────────────────────────┘'));
-        
-        await pressEnter();
-        return 'main';
-    },
+    console.log(chalk.cyan('  ═══════════════════════════════════════'));
+    console.log(chalk.cyan('  ║') + chalk.white.bold('  💻 SYSTEM INFO') + chalk.cyan('                       ║'));
+    console.log(chalk.cyan('  ═══════════════════════════════════════\n'));
     
-    viewLogs: async () => {
-        printHeader();
-        console.log(chalk.cyan('\n  ═══════════════════════════════════════'));
-        console.log(chalk.cyan('  ║') + chalk.white.bold('  📜 VIEW LOGS') + chalk.cyan('                         ║'));
-        console.log(chalk.cyan('  ═══════════════════════════════════════\n'));
-        
-        console.log(chalk.yellow('  ℹ️  To view live logs, start the bot from this menu.'));
-        console.log(chalk.yellow('  The logs will appear in real-time.\n'));
-        
-        // Check for PM2 logs
-        try {
-            console.log(chalk.gray('  Checking for PM2 logs...'));
-            const pm2Logs = execSync('pm2 logs ubot --lines 20 --nostream 2>/dev/null', { encoding: 'utf8' });
-            console.log(chalk.gray('\n  Last 20 PM2 log lines:'));
-            console.log(chalk.white(pm2Logs));
-        } catch (e) {
-            console.log(chalk.gray('  No PM2 logs available.'));
-        }
-        
-        await pressEnter();
-        return 'main';
-    },
+    console.log(chalk.white('  ┌─────────────────────────────────────┐'));
+    console.log(chalk.white('  │') + chalk.gray(' Platform:       ') + chalk.white(os.platform().padEnd(20)) + chalk.white('│'));
+    console.log(chalk.white('  │') + chalk.gray(' Architecture:   ') + chalk.white(os.arch().padEnd(20)) + chalk.white('│'));
+    console.log(chalk.white('  │') + chalk.gray(' Node.js:        ') + chalk.white(process.version.padEnd(20)) + chalk.white('│'));
+    console.log(chalk.white('  │') + chalk.gray(' CPU Cores:      ') + chalk.white(String(os.cpus().length).padEnd(20)) + chalk.white('│'));
+    console.log(chalk.white('  │') + chalk.gray(' Total Memory:   ') + chalk.white(formatBytes(os.totalmem()).padEnd(20)) + chalk.white('│'));
+    console.log(chalk.white('  │') + chalk.gray(' Free Memory:    ') + chalk.white(formatBytes(os.freemem()).padEnd(20)) + chalk.white('│'));
+    console.log(chalk.white('  │') + chalk.gray(' Hostname:       ') + chalk.white(os.hostname().substring(0, 20).padEnd(20)) + chalk.white('│'));
+    console.log(chalk.white('  └─────────────────────────────────────┘'));
     
-    sessionMenu: async () => {
-        return 'session';
-    },
+    await pressEnter();
+};
+
+const viewAbout = async () => {
+    clearScreen();
+    printBanner();
     
-    settingsMenu: async () => {
-        return 'settings';
-    },
-    
-    systemInfo: async () => {
-        printHeader();
-        console.log(chalk.cyan('\n  ═══════════════════════════════════════'));
-        console.log(chalk.cyan('  ║') + chalk.white.bold('  💻 SYSTEM INFORMATION') + chalk.cyan('                ║'));
-        console.log(chalk.cyan('  ═══════════════════════════════════════\n'));
-        
-        const info = getSystemInfo();
-        
-        console.log(chalk.white('  ┌─────────────────────────────────────┐'));
-        console.log(chalk.white('  │') + chalk.gray(' Platform:       ') + chalk.white(info.platform.padEnd(20)) + chalk.white('│'));
-        console.log(chalk.white('  │') + chalk.gray(' Architecture:   ') + chalk.white(info.arch.padEnd(20)) + chalk.white('│'));
-        console.log(chalk.white('  │') + chalk.gray(' Node.js:        ') + chalk.white(info.nodeVersion.padEnd(20)) + chalk.white('│'));
-        console.log(chalk.white('  │') + chalk.gray(' CPU Cores:      ') + chalk.white(String(info.cpus).padEnd(20)) + chalk.white('│'));
-        console.log(chalk.white('  │') + chalk.gray(' Total Memory:   ') + chalk.white(info.totalMemory.padEnd(20)) + chalk.white('│'));
-        console.log(chalk.white('  │') + chalk.gray(' Free Memory:    ') + chalk.white(info.freeMemory.padEnd(20)) + chalk.white('│'));
-        console.log(chalk.white('  │') + chalk.gray(' Used by Bot:    ') + chalk.white(info.usedMemory.padEnd(20)) + chalk.white('│'));
-        console.log(chalk.white('  │') + chalk.gray(' System Uptime:  ') + chalk.white(info.uptime.padEnd(20)) + chalk.white('│'));
-        console.log(chalk.white('  │') + chalk.gray(' Hostname:       ') + chalk.white(info.hostname.substring(0, 20).padEnd(20)) + chalk.white('│'));
-        console.log(chalk.white('  └─────────────────────────────────────┘'));
-        
-        await pressEnter();
-        return 'main';
-    },
-    
-    installDeps: async () => {
-        printHeader();
-        console.log(chalk.cyan('\n  ═══════════════════════════════════════'));
-        console.log(chalk.cyan('  ║') + chalk.white.bold('  📦 INSTALL DEPENDENCIES') + chalk.cyan('              ║'));
-        console.log(chalk.cyan('  ═══════════════════════════════════════\n'));
-        
-        const answer = await question('Install/update all dependencies? (y/n): ');
-        
-        if (answer.toLowerCase() === 'y') {
-            const spin = spinner('Installing dependencies...');
-            try {
-                execSync('npm install', { stdio: 'inherit' });
-                spin.succeed('Dependencies installed successfully!');
-            } catch (e) {
-                spin.fail('Failed to install dependencies');
-            }
-        }
-        
-        await pressEnter();
-        return 'main';
-    },
-    
-    about: async () => {
-        printHeader();
-        console.log(chalk.cyan('\n  ═══════════════════════════════════════'));
-        console.log(chalk.cyan('  ║') + chalk.white.bold('  ℹ️  ABOUT UBOT') + chalk.cyan('                       ║'));
-        console.log(chalk.cyan('  ═══════════════════════════════════════\n'));
-        
-        console.log(chalk.green(`
+    console.log(chalk.green(`
     ⚡ UBOT - Unfiltered Bytzz Bot
     
     Version:     ${CONFIG.version}
@@ -718,285 +537,57 @@ const actions = {
     ─────────────────────────────────────────
     
     ${chalk.gray('Made with ❤️ by Glen')}
-        `));
-        
-        await pressEnter();
-        return 'main';
-    },
+    `));
     
-    exit: async () => {
-        printHeader();
-        console.log(chalk.green('\n  👋 Thank you for using UBOT!'));
-        console.log(chalk.gray('  See you next time!\n'));
-        
-        if (isBotRunning()) {
-            const answer = await question('Bot is running. Stop it before exit? (y/n): ');
-            if (answer.toLowerCase() === 'y') {
-                await stopBotProcess();
-            }
-        }
-        
-        rl.close();
-        process.exit(0);
-    },
-    
-    // Session Menu Actions
-    viewSession: async () => {
-        printHeader();
-        console.log(chalk.cyan('\n  ═══════════════════════════════════════'));
-        console.log(chalk.cyan('  ║') + chalk.white.bold('  🔍 SESSION INFO') + chalk.cyan('                      ║'));
-        console.log(chalk.cyan('  ═══════════════════════════════════════\n'));
-        
-        const session = getSessionInfo();
-        
-        if (!session) {
-            console.log(chalk.yellow('  ⚠️  No session found.'));
-        } else {
-            console.log(chalk.white('  ┌─────────────────────────────────────┐'));
-            console.log(chalk.white('  │') + chalk.gray(' Registered:     ') + (session.registered ? chalk.green('Yes') : chalk.red('No')).padEnd(28) + chalk.white('│'));
-            console.log(chalk.white('  │') + chalk.gray(' Phone:          ') + chalk.white((session.phone || 'Unknown').padEnd(20)) + chalk.white('│'));
-            console.log(chalk.white('  │') + chalk.gray(' Platform:       ') + chalk.white((session.platform || 'Unknown').padEnd(20)) + chalk.white('│'));
-            console.log(chalk.white('  └─────────────────────────────────────┘'));
-        }
-        
-        await pressEnter();
-        return 'session';
-    },
-    
-    deleteSession: async () => {
-        printHeader();
-        console.log(chalk.cyan('\n  ═══════════════════════════════════════'));
-        console.log(chalk.cyan('  ║') + chalk.white.bold('  🗑️  DELETE SESSION') + chalk.cyan('                    ║'));
-        console.log(chalk.cyan('  ═══════════════════════════════════════\n'));
-        
-        if (!sessionExists()) {
-            console.log(chalk.yellow('  ⚠️  No session to delete.'));
-            await pressEnter();
-            return 'session';
-        }
-        
-        console.log(chalk.red('  ⚠️  WARNING: This will log out your bot!'));
-        const answer = await question('Are you sure? (yes/no): ');
-        
-        if (answer.toLowerCase() === 'yes') {
-            if (isBotRunning()) {
-                await stopBotProcess();
-            }
-            
-            const spin = spinner('Deleting session...');
-            if (deleteSession()) {
-                spin.succeed('Session deleted successfully!');
-            } else {
-                spin.fail('Failed to delete session');
-            }
-        } else {
-            console.log(chalk.gray('  Cancelled.'));
-        }
-        
-        await pressEnter();
-        return 'session';
-    },
-    
-    backupSession: async () => {
-        printHeader();
-        console.log(chalk.cyan('\n  ═══════════════════════════════════════'));
-        console.log(chalk.cyan('  ║') + chalk.white.bold('  💾 BACKUP SESSION') + chalk.cyan('                    ║'));
-        console.log(chalk.cyan('  ═══════════════════════════════════════\n'));
-        
-        if (!sessionExists()) {
-            console.log(chalk.yellow('  ⚠️  No session to backup.'));
-            await pressEnter();
-            return 'session';
-        }
-        
-        const spin = spinner('Creating backup...');
-        
-        try {
-            const backupDir = './session_backups';
-            if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir);
-            
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const backupPath = path.join(backupDir, `session_${timestamp}`);
-            
-            fs.cpSync(CONFIG.sessionDir, backupPath, { recursive: true });
-            
-            spin.succeed(`Backup created: ${backupPath}`);
-        } catch (e) {
-            spin.fail('Backup failed: ' + e.message);
-        }
-        
-        await pressEnter();
-        return 'session';
-    },
-    
-    restoreSession: async () => {
-        printHeader();
-        console.log(chalk.cyan('\n  ═══════════════════════════════════════'));
-        console.log(chalk.cyan('  ║') + chalk.white.bold('  📥 RESTORE SESSION') + chalk.cyan('                   ║'));
-        console.log(chalk.cyan('  ═══════════════════════════════════════\n'));
-        
-        const backupDir = './session_backups';
-        if (!fs.existsSync(backupDir)) {
-            console.log(chalk.yellow('  ⚠️  No backups found.'));
-            await pressEnter();
-            return 'session';
-        }
-        
-        const backups = fs.readdirSync(backupDir).filter(f => f.startsWith('session_'));
-        
-        if (backups.length === 0) {
-            console.log(chalk.yellow('  ⚠️  No backups found.'));
-            await pressEnter();
-            return 'session';
-        }
-        
-        console.log(chalk.white('  Available backups:\n'));
-        backups.forEach((b, i) => {
-            console.log(chalk.gray(`  [${i + 1}] ${b}`));
-        });
-        console.log(chalk.gray('  [0] Cancel\n'));
-        
-        const choice = await question('Select backup number: ');
-        const idx = parseInt(choice) - 1;
-        
-        if (idx >= 0 && idx < backups.length) {
-            if (isBotRunning()) {
-                await stopBotProcess();
-            }
-            
-            const spin = spinner('Restoring session...');
-            
-            try {
-                if (fs.existsSync(CONFIG.sessionDir)) {
-                    fs.rmSync(CONFIG.sessionDir, { recursive: true });
-                }
-                
-                fs.cpSync(path.join(backupDir, backups[idx]), CONFIG.sessionDir, { recursive: true });
-                spin.succeed('Session restored successfully!');
-            } catch (e) {
-                spin.fail('Restore failed: ' + e.message);
-            }
-        } else if (choice !== '0') {
-            console.log(chalk.red('  Invalid selection.'));
-        }
-        
-        await pressEnter();
-        return 'session';
-    },
-    
-    // Settings Actions
-    viewSettings: async () => {
-        printHeader();
-        console.log(chalk.cyan('\n  ═══════════════════════════════════════'));
-        console.log(chalk.cyan('  ║') + chalk.white.bold('  📋 CURRENT SETTINGS') + chalk.cyan('                  ║'));
-        console.log(chalk.cyan('  ═══════════════════════════════════════\n'));
-        
-        try {
-            const settings = require('./settings');
-            console.log(chalk.white('  ┌─────────────────────────────────────┐'));
-            console.log(chalk.white('  │') + chalk.gray(' Bot Name:       ') + chalk.white((settings.botname || 'UBOT').padEnd(20)) + chalk.white('│'));
-            console.log(chalk.white('  │') + chalk.gray(' Owner Number:   ') + chalk.white((settings.ownerNumber || 'Not set').padEnd(20)) + chalk.white('│'));
-            console.log(chalk.white('  │') + chalk.gray(' Prefix:         ') + chalk.white((settings.prefix || '.').padEnd(20)) + chalk.white('│'));
-            console.log(chalk.white('  │') + chalk.gray(' Pack Name:      ') + chalk.white((settings.packname || 'UBot').substring(0, 20).padEnd(20)) + chalk.white('│'));
-            console.log(chalk.white('  │') + chalk.gray(' Author:         ') + chalk.white((settings.author || 'Glen').padEnd(20)) + chalk.white('│'));
-            console.log(chalk.white('  └─────────────────────────────────────┘'));
-        } catch (e) {
-            console.log(chalk.red('  ❌ Could not load settings: ' + e.message));
-        }
-        
-        await pressEnter();
-        return 'settings';
-    },
-    
-    changeBotName: async () => {
-        printHeader();
-        const newName = await question('Enter new bot name: ');
-        if (newName) {
-            console.log(chalk.green(`  ✅ Bot name would be changed to: ${newName}`));
-            console.log(chalk.yellow('  ℹ️  Edit settings.js to make permanent changes.'));
-        }
-        await pressEnter();
-        return 'settings';
-    },
-    
-    changePort: async () => {
-        printHeader();
-        const newPort = await question('Enter new port number: ');
-        if (newPort && !isNaN(newPort)) {
-            console.log(chalk.green(`  ✅ Port would be changed to: ${newPort}`));
-            console.log(chalk.yellow('  ℹ️  Set PORT environment variable or edit settings.'));
-        }
-        await pressEnter();
-        return 'settings';
-    },
-    
-    changeOwner: async () => {
-        printHeader();
-        const newOwner = await question('Enter owner phone number (with country code): ');
-        if (newOwner) {
-            console.log(chalk.green(`  ✅ Owner would be changed to: ${newOwner}`));
-            console.log(chalk.yellow('  ℹ️  Edit data/owner.json to make permanent changes.'));
-        }
-        await pressEnter();
-        return 'settings';
-    },
-    
-    toggleAutoRead: async () => {
-        console.log(chalk.yellow('  ℹ️  Use .autoread command in WhatsApp to toggle.'));
-        await pressEnter();
-        return 'settings';
-    },
-    
-    togglePublic: async () => {
-        console.log(chalk.yellow('  ℹ️  Use .mode public/private command in WhatsApp to toggle.'));
-        await pressEnter();
-        return 'settings';
-    },
-    
-    back: async () => {
-        return 'main';
-    },
+    await pressEnter();
 };
 
 // ============ MAIN LOOP ============
 const mainLoop = async () => {
-    let currentMenu = 'main';
-    
     while (true) {
-        printHeader();
+        clearScreen();
+        printBanner();
         
-        let menuItems;
-        let menuTitle;
+        const status = isBotRunning();
+        console.log(chalk.gray(`  Status: ${status ? chalk.green('● Bot Running') + (botStartTime ? chalk.gray(' | Uptime: ' + formatUptime(Date.now() - botStartTime)) : '') : chalk.red('● Bot Stopped')}`));
         
-        switch (currentMenu) {
-            case 'session':
-                menuItems = MENUS.session;
-                menuTitle = 'SESSION MANAGER';
+        printMenu(mainMenu, 'MAIN MENU');
+        
+        const choice = await question('Enter choice: ');
+        
+        switch (choice) {
+            case '1':
+                await startBot();
                 break;
-            case 'settings':
-                menuItems = MENUS.settings;
-                menuTitle = 'SETTINGS';
+            case '2':
+                await stopBot();
                 break;
+            case '3':
+                await viewStatus();
+                break;
+            case '4':
+                await handleSessionMenu();
+                break;
+            case '5':
+                await viewSystemInfo();
+                break;
+            case '6':
+                await viewAbout();
+                break;
+            case '0':
+                clearScreen();
+                console.log(chalk.green('\n  👋 Thanks for using UBot! Goodbye!\n'));
+                if (isBotRunning()) {
+                    const confirm = await question('Bot is running. Stop before exit? (y/n): ');
+                    if (confirm.toLowerCase() === 'y') {
+                        botProcess.kill('SIGTERM');
+                    }
+                }
+                rl.close();
+                process.exit(0);
             default:
-                menuItems = MENUS.main;
-                menuTitle = 'MAIN MENU';
-        }
-        
-        // Show current status
-        const status = getBotStatus();
-        console.log(chalk.gray(`  Status: ${status.running ? chalk.green('● Bot Running') : chalk.red('● Bot Stopped')}${status.running ? chalk.gray(' | PID: ' + status.pid + ' | Uptime: ' + status.uptime) : ''}`));
-        
-        printMenu(menuItems, menuTitle);
-        
-        const choice = await question('Enter your choice: ');
-        const selectedItem = menuItems.find(item => item.key === choice);
-        
-        if (selectedItem && actions[selectedItem.action]) {
-            const result = await actions[selectedItem.action]();
-            if (result) currentMenu = result;
-        } else {
-            console.log(chalk.red('\n  ❌ Invalid option. Please try again.'));
-            await sleep(1000);
+                console.log(chalk.red('\n  ❌ Invalid option!'));
+                await sleep(1000);
         }
     }
 };
@@ -1004,46 +595,44 @@ const mainLoop = async () => {
 // ============ STARTUP ============
 const startup = async () => {
     clearScreen();
-    console.log(BANNERS.loading);
+    
+    console.log(chalk.green(`
+   █▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█
+   █  ⚡ UBOT LOADING...     █
+   █▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄█
+    `));
     
     // Check required files
     const requiredFiles = ['./settings.js', './main.js', './lib/myfunc.js'];
-    const missingFiles = requiredFiles.filter(f => !fs.existsSync(f));
+    const missing = requiredFiles.filter(f => !fs.existsSync(f));
     
-    if (missingFiles.length > 0) {
+    if (missing.length > 0) {
         console.log(chalk.red('\n  ❌ Missing required files:'));
-        missingFiles.forEach(f => console.log(chalk.red(`     - ${f}`)));
-        console.log(chalk.yellow('\n  Please make sure all bot files are present.'));
+        missing.forEach(f => console.log(chalk.red(`     - ${f}`)));
+        console.log(chalk.yellow('\n  Please ensure all bot files are present.'));
         process.exit(1);
     }
     
-    await sleep(1000);
-    
-    // Start main loop
-    mainLoop().catch(err => {
-        console.error(chalk.red('\n  ❌ Fatal error:'), err);
-        process.exit(1);
-    });
+    await sleep(1500);
+    mainLoop();
 };
 
-// Handle graceful shutdown
+// ============ ERROR HANDLING ============
 process.on('SIGINT', async () => {
     console.log(chalk.yellow('\n\n  Shutting down...'));
-    if (isBotRunning()) {
-        await stopBotProcess();
-    }
+    if (isBotRunning()) botProcess.kill('SIGTERM');
     rl.close();
     process.exit(0);
 });
 
 process.on('uncaughtException', (err) => {
-    console.error(chalk.red('\n  ❌ Uncaught Exception:'), err.message);
+    console.error(chalk.red('\n  ❌ Error:'), err.message);
 });
 
 process.on('unhandledRejection', (err) => {
-    console.error(chalk.red('\n  ❌ Unhandled Rejection:'), err);
+    console.error(chalk.red('\n  ❌ Error:'), err);
 });
 
-// Start the CLI
+// Start
 startup();
 ENDOFFILE
